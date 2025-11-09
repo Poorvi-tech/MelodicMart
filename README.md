@@ -1,10 +1,6 @@
 # 🎵 Music Instruments Store
 
 <p align="center">
-  <img src="https://img.freepik.com/free-vector/music-instruments-collection-flat-style_23-2147967839.jpg" alt="Music Instruments" width="400"/>
-</p>
-
-<p align="center">
   A modern, full-featured e-commerce platform for musical instruments with advanced interactive features
 </p>
 
