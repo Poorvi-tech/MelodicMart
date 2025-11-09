@@ -25,7 +25,11 @@ const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
     },
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, config);
+  // Ensure endpoint starts with / and remove any double slashes
+  const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  const url = `${API_URL}${normalizedEndpoint}`.replace(/([^:]\/)\/+/g, "$1");
+
+  const response = await fetch(url, config);
   
   if (!response.ok) {
     if (response.status === 401 && typeof window !== 'undefined') {
