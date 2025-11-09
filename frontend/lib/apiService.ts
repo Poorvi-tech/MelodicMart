@@ -4,6 +4,8 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ||
     ? 'http://localhost:5000/api' 
     : 'https://melodicmart.onrender.com/api');
 
+console.log('API_URL being used:', API_URL); // Debug line
+
 // Utility function to get token
 const getToken = (): string | null => {
   if (typeof window !== 'undefined') {
@@ -28,6 +30,8 @@ const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
   // Ensure endpoint starts with / and remove any double slashes
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_URL}${normalizedEndpoint}`.replace(/([^:]\/)\/+/g, "$1");
+
+  console.log('Making API request to:', url); // Debug line
 
   const response = await fetch(url, config);
   
