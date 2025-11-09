@@ -31,6 +31,31 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+// Root route - Welcome message
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Welcome to MelodicMart Music Store API', 
+    version: '1.0.0',
+    documentation: 'Please refer to our API documentation for available endpoints',
+    endpoints: {
+      auth: '/api/auth',
+      products: '/api/products',
+      categories: '/api/categories',
+      orders: '/api/orders',
+      wishlist: '/api/wishlist',
+      stockAlerts: '/api/stock-alerts',
+      chat: '/api/chat',
+      contact: '/api/contact',
+      health: '/api/health'
+    }
+  });
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', message: 'Music Store API is running' });
+});
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
@@ -40,11 +65,6 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/stock-alerts', stockAlertRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/contact', contactRoutes);
-
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'OK', message: 'Music Store API is running' });
-});
 
 // Error handling middleware
 app.use((err, req, res, next) => {
