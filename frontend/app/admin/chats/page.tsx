@@ -14,6 +14,7 @@ interface Message {
   edited?: boolean;
   deleted?: boolean;
   deletedFor?: 'none' | 'sender' | 'everyone';
+  status?: 'sent' | 'delivered' | 'read'; // WhatsApp-like status
 }
 
 interface Chat {
@@ -29,6 +30,7 @@ interface Chat {
   status: 'active' | 'resolved' | 'pending';
   lastMessageAt: string;
   unreadCount: number;
+  isUserTyping?: boolean; // Typing indicator
 }
 
 export default function AdminChats() {
@@ -43,9 +45,13 @@ export default function AdminChats() {
   const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   const [showChatOptions, setShowChatOptions] = useState(false);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [isUserTyping, setIsUserTyping] = useState(false); // Track if user is typing
+  const [isAdminTyping, setIsAdminTyping] = useState(false); // Track if admin is typing
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Check admin access
@@ -63,9 +69,17 @@ export default function AdminChats() {
 
     loadChats();
     
-    // Auto-refresh every 10 seconds
-    const interval = setInterval(loadChats, 10000);
-    return () => clearInterval(interval);
+    // Auto-refresh every 3 seconds for real-time updates
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+    }
+    pollIntervalRef.current = setInterval(loadChats, 3000);
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
   }, [filter]);
 
   useEffect(() => {
@@ -92,6 +106,8 @@ export default function AdminChats() {
           const updated = data.chats.find((c: Chat) => c._id === selectedChat._id);
           if (updated) {
             setSelectedChat(updated);
+            // Set typing indicators
+            setIsUserTyping(updated.isUserTyping || false);
           }
         }
       }
@@ -124,6 +140,52 @@ export default function AdminChats() {
     }
   };
 
+  // Function to send admin typing status
+  const sendAdminTypingStatus = async (isTyping: boolean) => {
+    if (!selectedChat) return;
+    
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat/admin/typing/${selectedChat._id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isTyping })
+      });
+    } catch (error) {
+      console.error('Error sending admin typing status:', error);
+    }
+  };
+
+  // Handle reply input change with typing indicator
+  const handleReplyInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setReplyMessage(value);
+    
+    // Send typing status
+    if (value.trim() && !isAdminTyping) {
+      setIsAdminTyping(true);
+      sendAdminTypingStatus(true);
+    }
+    
+    // Clear previous timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    // Set new timeout to stop typing indicator after 1 second of inactivity
+    const timeout = setTimeout(() => {
+      if (isAdminTyping) {
+        setIsAdminTyping(false);
+        sendAdminTypingStatus(false);
+      }
+    }, 1000);
+    
+    setTypingTimeout(timeout);
+  };
+
   const handleSelectChat = async (chat: Chat) => {
     setSelectedChat(chat);
     // Mark messages as read when admin opens the chat
@@ -133,6 +195,15 @@ export default function AdminChats() {
   const handleSendReply = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!replyMessage.trim() || !selectedChat || sending) return;
+
+    // Clear typing status immediately when sending message
+    if (isAdminTyping) {
+      setIsAdminTyping(false);
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      sendAdminTypingStatus(false);
+    }
 
     setSending(true);
     try {
@@ -325,6 +396,38 @@ export default function AdminChats() {
     }
   };
 
+  // Render message status indicators (WhatsApp-like) with more distinct visuals
+  const renderMessageStatus = (message: Message) => {
+    if (message.sender !== 'admin') return null;
+    
+    switch (message.status) {
+      case 'sent':
+        return (
+          <span className="text-xs text-gray-400 ml-1" title="Sent">
+            ✓
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="text-xs text-gray-600 ml-1 font-bold" title="Delivered">
+            ✓✓
+          </span>
+        );
+      case 'read':
+        return (
+          <span className="text-xs text-blue-600 ml-1 font-bold animate-pulse" title="Seen">
+            ✓✓
+          </span>
+        );
+      default:
+        return (
+          <span className="text-xs text-gray-400 ml-1" title="Sent">
+            ✓
+          </span>
+        );
+    }
+  };
+
   const totalUnread = chats.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
   if (loading) {
@@ -339,7 +442,7 @@ export default function AdminChats() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-blue-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50 py-8">
       <div className="max-w-7xl mx-auto px-4">
         {/* Header - Simplified */}
         <div className="bg-white rounded-xl shadow-md p-5 mb-4">
@@ -386,7 +489,7 @@ export default function AdminChats() {
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
           <div className="grid grid-cols-1 md:grid-cols-3 h-[650px]">
             {/* Buyer List - Clean & Minimal */}
-            <div className="border-r border-gray-200 overflow-y-auto bg-gray-50">
+            <div className="border-r border-gray-200 overflow-y-auto bg-purple-50">
               {chats.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -418,7 +521,7 @@ export default function AdminChats() {
                         </div>
                       </div>
                       {chat.unreadCount > 0 && (
-                        <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full font-bold min-w-[24px] text-center">
+                        <span className="bg-pink-500 text-white text-xs px-2 py-1 rounded-full font-bold min-w-[24px] text-center">
                           {chat.unreadCount}
                         </span>
                       )}
@@ -453,7 +556,9 @@ export default function AdminChats() {
                         </div>
                         <div>
                           <h3 className="font-bold text-white">{selectedChat.userName}</h3>
-                          <p className="text-xs text-purple-100">{selectedChat.userEmail}</p>
+                          <p className="text-xs text-purple-100">
+                            {isUserTyping ? 'User is typing...' : selectedChat.userEmail}
+                          </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
@@ -489,7 +594,7 @@ export default function AdminChats() {
                   </div>
 
                   {/* Messages - Clean Design */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-purple-50">
                     {selectedChat.messages.map((msg, index) => (
                       <div
                         key={index}
@@ -519,10 +624,10 @@ export default function AdminChats() {
                           </div>
                         ) : (
                           <div
-                            className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm relative ${
+                            className={`max-w-[75%] px-4 py-3 rounded-2xl shadow-sm relative transform transition-all duration-300 hover:scale-[1.02] ${
                                 msg.sender === 'admin'
-                                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-br-sm'
-                                  : 'bg-white text-gray-900 rounded-bl-sm'
+                                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-br-sm shadow-lg'
+                                  : 'bg-white text-gray-900 rounded-bl-sm border border-purple-100'
                             }`}
                             onClick={() => {
                               if (msg.sender === 'admin' && !msg.deleted) {
@@ -597,23 +702,36 @@ export default function AdminChats() {
                                   ⋮
                                 </button>
                               )}
+                              {renderMessageStatus(msg)}
                             </p>
                           </div>
                         )}
                       </div>
                     ))}
+                    {/* Typing indicator for user */}
+                    {isUserTyping && (
+                      <div className="flex justify-start animate-fadeIn">
+                        <div className="bg-white text-gray-900 rounded-2xl rounded-bl-sm shadow-sm px-4 py-3 border border-purple-100">
+                          <div className="flex items-center space-x-1">
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <div ref={messagesEndRef} />
                   </div>
 
                   {/* Reply Box - Simple */}
-                  <form onSubmit={handleSendReply} className="p-4 bg-white border-t">
+                  <form onSubmit={handleSendReply} className="p-4 bg-white border-t border-purple-100">
                     <div className="flex gap-3">
                       <input
                         type="text"
                         value={replyMessage}
-                        onChange={(e) => setReplyMessage(e.target.value)}
+                        onChange={handleReplyInputChange}
                         placeholder="Type your reply..."
-                        className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        className="flex-1 px-4 py-3 border border-purple-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                         disabled={sending}
                       />
                       <button
@@ -628,7 +746,7 @@ export default function AdminChats() {
                   </form>
                 </>
               ) : (
-                <div className="flex-1 flex items-center justify-center bg-gray-50">
+                <div className="flex-1 flex items-center justify-center bg-purple-50">
                   <div className="text-center">
                     <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
                       <MessageCircle className="w-10 h-10 text-purple-600" />

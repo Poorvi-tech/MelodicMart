@@ -13,6 +13,7 @@ interface Message {
   edited?: boolean;
   deleted?: boolean;
   deletedFor?: 'none' | 'sender' | 'everyone';
+  status?: 'sent' | 'delivered' | 'read'; // WhatsApp-like status
 }
 
 export default function ChatWidget() {
@@ -33,10 +34,14 @@ export default function ChatWidget() {
   const [mediaRecorder, setMediaRecorder] = useState<MediaRecorder | null>(null);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
+  const [isUserTyping, setIsUserTyping] = useState(false); // Track if user is typing
+  const [isAdminTyping, setIsAdminTyping] = useState(false); // Track if admin is typing
+  const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Check if user is logged in and if admin
   useEffect(() => {
@@ -54,23 +59,26 @@ export default function ChatWidget() {
   useEffect(() => {
     if (isOpen && isLoggedIn) {
       loadChat();
+      // Set up polling for real-time updates
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+      pollIntervalRef.current = setInterval(() => {
+        loadChat(true);
+      }, 3000); // Poll every 3 seconds for real-time updates
     }
+    
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
   }, [isOpen, isLoggedIn]);
 
   // Auto scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  // Poll for new messages every 10 seconds when chat is open
-  useEffect(() => {
-    if (isOpen && isLoggedIn) {
-      const interval = setInterval(() => {
-        loadChat(true);
-      }, 10000);
-      return () => clearInterval(interval);
-    }
-  }, [isOpen, isLoggedIn]);
 
   const loadChat = async (silent = false) => {
     try {
@@ -85,7 +93,13 @@ export default function ChatWidget() {
 
       const data = await response.json();
       if (data.success) {
-        setMessages(data.chat.messages || []);
+        // Only update messages if they've changed
+        const currentMessageIds = messages.map(m => m._id).join(',');
+        const newMessageIds = (data.chat.messages || []).map((m: Message) => m._id).join(',');
+        
+        if (currentMessageIds !== newMessageIds) {
+          setMessages(data.chat.messages || []);
+        }
         
         // Count unread messages from admin
         const unread = (data.chat.messages || []).filter(
@@ -97,6 +111,9 @@ export default function ChatWidget() {
         if (isOpen && unread > 0) {
           markAsRead();
         }
+        
+        // Set typing indicators
+        setIsAdminTyping(data.chat.isAdminTyping || false);
       }
     } catch (error) {
       if (!silent) {
@@ -120,9 +137,62 @@ export default function ChatWidget() {
     }
   };
 
+  // Function to send typing status
+  const sendTypingStatus = async (isTyping: boolean) => {
+    try {
+      const token = localStorage.getItem('token');
+      await fetch(`${process.env.NEXT_PUBLIC_API_URL}/chat/typing`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ isTyping })
+      });
+    } catch (error) {
+      console.error('Error sending typing status:', error);
+    }
+  };
+
+  // Handle input change with typing indicator
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+    
+    // Send typing status
+    if (value.trim() && !isUserTyping) {
+      setIsUserTyping(true);
+      sendTypingStatus(true);
+    }
+    
+    // Clear previous timeout
+    if (typingTimeout) {
+      clearTimeout(typingTimeout);
+    }
+    
+    // Set new timeout to stop typing indicator after 1 second of inactivity
+    const timeout = setTimeout(() => {
+      if (isUserTyping) {
+        setIsUserTyping(false);
+        sendTypingStatus(false);
+      }
+    }, 1000);
+    
+    setTypingTimeout(timeout);
+  };
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || loading) return;
+
+    // Clear typing status immediately when sending message
+    if (isUserTyping) {
+      setIsUserTyping(false);
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      sendTypingStatus(false);
+    }
 
     setLoading(true);
     try {
@@ -487,6 +557,38 @@ export default function ChatWidget() {
     );
   };
 
+  // Render message status indicators (WhatsApp-like) with more distinct visuals
+  const renderMessageStatus = (message: Message) => {
+    if (message.sender !== 'user') return null;
+    
+    switch (message.status) {
+      case 'sent':
+        return (
+          <span className="text-xs text-gray-400 ml-1" title="Sent">
+            ✓
+          </span>
+        );
+      case 'delivered':
+        return (
+          <span className="text-xs text-gray-600 ml-1 font-bold" title="Delivered">
+            ✓✓
+          </span>
+        );
+      case 'read':
+        return (
+          <span className="text-xs text-blue-600 ml-1 font-bold animate-pulse" title="Seen">
+            ✓✓
+          </span>
+        );
+      default:
+        return (
+          <span className="text-xs text-gray-400 ml-1" title="Sent">
+            ✓
+          </span>
+        );
+    }
+  };
+
   // Don't show chat widget to admin users
   if (isAdmin) {
     return null;
@@ -497,22 +599,24 @@ export default function ChatWidget() {
       {/* Chat Floating Button */}
       <div className="fixed bottom-6 right-6 z-50">
         {isOpen && (
-          <div className="absolute bottom-20 right-0 bg-white rounded-2xl shadow-2xl w-80 sm:w-96 h-[400px] sm:h-[500px] animate-fadeIn border-2 border-blue-200 flex flex-col">
+          <div className="absolute bottom-20 right-0 bg-white rounded-2xl shadow-2xl w-80 sm:w-96 h-[400px] sm:h-[500px] animate-fadeIn border-2 border-purple-200 flex flex-col">
             {/* Floating Bubbles in Chat */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-2xl">
-              <div className="absolute top-10 left-10 w-6 h-6 rounded-full bg-blue-200 opacity-30 animate-bubblePulse" style={{ animationDelay: '0s' }}></div>
-              <div className="absolute top-20 right-10 w-4 h-4 rounded-full bg-indigo-200 opacity-40 animate-bubblePulse" style={{ animationDelay: '1s' }}></div>
+              <div className="absolute top-10 left-10 w-6 h-6 rounded-full bg-purple-200 opacity-30 animate-bubblePulse" style={{ animationDelay: '0s' }}></div>
+              <div className="absolute top-20 right-10 w-4 h-4 rounded-full bg-pink-200 opacity-40 animate-bubblePulse" style={{ animationDelay: '1s' }}></div>
             </div>
             
             {/* Header */}
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white p-4 rounded-t-2xl flex items-center justify-between relative">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-2xl flex items-center justify-between relative">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center animate-bounce-slow">
                   <MessageCircle className="w-6 h-6" />
                 </div>
                 <div>
                   <h3 className="font-bold">Chat with Seller</h3>
-                  <p className="text-xs text-blue-100">Ask about products!</p>
+                  <p className="text-xs text-purple-100">
+                    {isAdminTyping ? 'Seller is typing...' : 'Ask about products!'}
+                  </p>
                 </div>
               </div>
               <div className="relative">
@@ -544,10 +648,10 @@ export default function ChatWidget() {
             </div>
             
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-blue-50 relative">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-purple-50 relative">
               {messages.length === 0 ? (
-                <div className="text-center text-indigo-500 mt-8 animate-fadeIn">
-                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-indigo-300" />
+                <div className="text-center text-purple-500 mt-8 animate-fadeIn">
+                  <MessageCircle className="w-12 h-12 mx-auto mb-3 text-purple-300" />
                   <p className="text-sm">No messages yet</p>
                   <p className="text-xs">Send a message to start chatting!</p>
                 </div>
@@ -584,9 +688,9 @@ export default function ChatWidget() {
                       <div
                         className={`max-w-[80%] px-4 py-2 rounded-2xl ${
                           msg.sender === 'user'
-                            ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-none'
-                            : 'bg-white text-indigo-900 rounded-bl-none shadow border border-blue-100'
-                        } relative`}
+                            ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-br-none shadow-lg'
+                            : 'bg-white text-purple-900 rounded-bl-none shadow border border-purple-100'
+                        } relative transform transition-all duration-300 hover:scale-[1.02]`}
                         onClick={() => {
                           if (msg.sender === 'user' && !msg.deleted) {
                             setSelectedMessageId(selectedMessageId === msg._id ? null : msg._id!);
@@ -629,11 +733,12 @@ export default function ChatWidget() {
                           <p className="text-sm">{msg.message}</p>
                         )}
                         <p className={`text-xs mt-1 flex items-center justify-between ${
-                          msg.sender === 'user' ? 'text-blue-100' : 'text-indigo-500'
+                          msg.sender === 'user' ? 'text-purple-100' : 'text-purple-500'
                         }`}>
                           <span>
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             {msg.edited && <span className="ml-1">(edited)</span>}
+                            {renderMessageStatus(msg)}
                           </span>
                           {msg.sender === 'user' && !msg.deleted && (
                             <button className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -646,11 +751,23 @@ export default function ChatWidget() {
                   </div>
                 ))
               )}
+              {/* Typing indicator for admin */}
+              {isAdminTyping && (
+                <div className="flex justify-start animate-fadeIn">
+                  <div className="bg-white text-purple-900 rounded-2xl rounded-bl-none shadow border border-purple-100 px-4 py-2">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></div>
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div ref={messagesEndRef} />
             </div>
             
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-blue-100 relative">
+            <form onSubmit={handleSendMessage} className="p-4 bg-white border-t border-purple-100 relative">
               {showEmojiPicker && renderEmojiPicker()}
               <div className="flex gap-2 items-center">
                 <button
@@ -676,15 +793,15 @@ export default function ChatWidget() {
                 <input
                   type="text"
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={handleInputChange}
                   placeholder="Type your message..."
-                  className="flex-1 px-4 py-2 border border-blue-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-300 transition-all text-indigo-900 placeholder-indigo-400"
+                  className="flex-1 px-4 py-2 border border-purple-200 rounded-full focus:outline-none focus:ring-2 focus:ring-purple-300 transition-all text-purple-900 placeholder-purple-400"
                   disabled={loading || isRecording}
                 />
                 <button
                   type="submit"
                   disabled={!newMessage.trim() || loading || isRecording}
-                  className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:shadow-lg transition-all disabled:opacity-50 hover:scale-110"
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white w-10 h-10 rounded-full flex items-center justify-center hover:shadow-lg transition-all disabled:opacity-50 hover:scale-110"
                 >
                   <Send className="w-5 h-5" />
                 </button>
@@ -695,13 +812,13 @@ export default function ChatWidget() {
 
         <button
           onClick={handleOpen}
-          className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all animate-bounce-slow relative"
+          className="bg-gradient-to-r from-purple-500 to-pink-500 text-white w-14 h-14 sm:w-16 sm:h-16 rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-all animate-bounce-slow relative"
         >
           {/* Floating Bubble around Chat Button */}
-          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-blue-300 opacity-40 animate-bubblePulse" style={{ animationDelay: '0s' }}></div>
+          <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-purple-300 opacity-40 animate-bubblePulse" style={{ animationDelay: '0s' }}></div>
           
           {unreadCount > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-400 text-white text-xs w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center font-bold animate-pulse z-10">
+            <span className="absolute -top-2 -right-2 bg-pink-400 text-white text-xs w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center font-bold animate-pulse z-10">
               {unreadCount}
             </span>
           )}

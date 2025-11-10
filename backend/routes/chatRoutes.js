@@ -15,7 +15,9 @@ const {
   editAdminReply,
   deleteAdminReply,
   clearChat,
-  clearChatAdmin
+  clearChatAdmin,
+  setUserTyping,
+  setAdminTyping
 } = require('../controllers/chatController');
 const { protect, admin } = require('../middleware/authMiddleware');
 
@@ -29,6 +31,8 @@ router.post('/emoji', sendEmoji);
 router.post('/voice', sendVoiceMessage);
 router.put('/read', markAsRead);
 router.delete('/clear', clearChat);
+// Typing indicators
+router.post('/typing', setUserTyping);
 
 // Admin routes
 router.get('/admin/all', admin, getAllChats);
@@ -38,5 +42,7 @@ router.delete('/admin/reply/:chatId/:messageId', admin, deleteAdminReply);
 router.put('/admin/status/:chatId', admin, updateChatStatus);
 router.put('/admin/read/:chatId', admin, markAsReadByAdmin);
 router.delete('/admin/clear/:chatId', admin, clearChatAdmin);
+// Admin typing indicators
+router.post('/admin/typing/:chatId', admin, setAdminTyping);
 
 module.exports = router;

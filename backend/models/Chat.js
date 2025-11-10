@@ -41,6 +41,12 @@ const messageSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  // WhatsApp-like message status tracking
+  status: {
+    type: String,
+    enum: ['sent', 'delivered', 'read'],
+    default: 'sent'
+  },
   timestamp: {
     type: Date,
     default: Date.now
@@ -82,6 +88,19 @@ const chatSchema = new mongoose.Schema({
   },
   clearedByAdminAt: {
     type: Date,
+    default: null
+  },
+  // Typing indicators
+  isUserTyping: {
+    type: Boolean,
+    default: false
+  },
+  isAdminTyping: {
+    type: Boolean,
+    default: false
+  },
+  typingUserId: {
+    type: String,
     default: null
   }
 }, {

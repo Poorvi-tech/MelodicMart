@@ -39,6 +39,22 @@ exports.getUserChat = async (req, res) => {
       return true;
     });
 
+    // Update message status to "delivered" when user loads chat
+    // (This means messages have been delivered to the user)
+    let messagesUpdated = false;
+    filteredMessages.forEach(msg => {
+      if (msg.sender === 'admin' && msg.status === 'sent') {
+        msg.status = 'delivered';
+        messagesUpdated = true;
+      }
+    });
+
+    // If any messages were updated, save the chat
+    if (messagesUpdated) {
+      chat.markModified('messages');
+      await chat.save();
+    }
+
     // Create a copy of the chat object with filtered messages
     const chatObject = chat.toObject();
     chatObject.messages = filteredMessages;
@@ -81,12 +97,15 @@ exports.sendMessage = async (req, res) => {
       });
     }
 
-    // Add message
-    chat.messages.push({
+    // Add message with initial status
+    const newMessage = {
       sender: 'user',
       message: message.trim(),
-      read: false
-    });
+      read: false,
+      status: 'sent' // Message is sent but not yet delivered
+    };
+
+    chat.messages.push(newMessage);
 
     chat.lastMessageAt = new Date();
     chat.unreadCount += 1;
@@ -153,6 +172,23 @@ exports.getAllChats = async (req, res) => {
       };
     });
 
+    // Update message status to "delivered" when admin loads chats
+    // (This means messages have been delivered to the admin)
+    for (const chat of chats) {
+      let messagesUpdated = false;
+      chat.messages.forEach(msg => {
+        if (msg.sender === 'user' && msg.status === 'sent') {
+          msg.status = 'delivered';
+          messagesUpdated = true;
+        }
+      });
+      
+      if (messagesUpdated) {
+        chat.markModified('messages');
+        await chat.save();
+      }
+    }
+
     const totalUnread = filteredChats.reduce((sum, chat) => sum + chat.unreadCount, 0);
 
     res.json({
@@ -194,12 +230,15 @@ exports.replyToChat = async (req, res) => {
       });
     }
 
-    // Add admin reply
-    chat.messages.push({
+    // Add admin reply with initial status
+    const newMessage = {
       sender: 'admin',
       message: message.trim(),
-      read: false
-    });
+      read: false,
+      status: 'sent' // Message is sent but not yet delivered
+    };
+
+    chat.messages.push(newMessage);
 
     chat.lastMessageAt = new Date();
     chat.unreadCount = 0; // Reset unread count when admin replies
@@ -354,10 +393,11 @@ exports.markAsRead = async (req, res) => {
       });
     }
 
-    // Mark all admin messages as read
+    // Mark all admin messages as read and update status
     chat.messages.forEach(msg => {
       if (msg.sender === 'admin' && !msg.read) {
         msg.read = true;
+        msg.status = 'read';
       }
     });
 
@@ -392,10 +432,11 @@ exports.markAsReadByAdmin = async (req, res) => {
       });
     }
 
-    // Mark all user messages as read by admin
+    // Mark all user messages as read by admin and update status
     chat.messages.forEach(msg => {
       if (msg.sender === 'user' && !msg.read) {
         msg.read = true;
+        msg.status = 'read';
       }
     });
 
@@ -766,6 +807,80 @@ exports.clearChatAdmin = async (req, res) => {
       success: true,
       message: 'Chat cleared successfully for you only',
       chat
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// Add new controller methods for typing indicators
+
+// @desc    Set user typing status
+// @route   POST /api/chat/typing
+// @access  Private
+exports.setUserTyping = async (req, res) => {
+  try {
+    const { isTyping } = req.body;
+    const chat = await Chat.findOne({ user: req.user._id });
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat not found'
+      });
+    }
+
+    chat.isUserTyping = isTyping;
+    chat.typingUserId = req.user._id;
+    
+    // If user stops typing, clear the typing user ID
+    if (!isTyping) {
+      chat.typingUserId = null;
+    }
+
+    await chat.save();
+
+    res.json({
+      success: true,
+      message: `User typing status set to ${isTyping}`
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Set admin typing status
+// @route   POST /api/chat/admin/typing/:chatId
+// @access  Private/Admin
+exports.setAdminTyping = async (req, res) => {
+  try {
+    const { chatId } = req.params;
+    const { isTyping } = req.body;
+    
+    const chat = await Chat.findById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: 'Chat not found'
+      });
+    }
+
+    chat.isAdminTyping = isTyping;
+    
+    await chat.save();
+
+    res.json({
+      success: true,
+      message: `Admin typing status set to ${isTyping}`
     });
   } catch (error) {
     res.status(500).json({
