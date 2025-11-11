@@ -9,20 +9,17 @@ import { X, ShoppingCart, Star, CheckCircle, XCircle } from 'lucide-react';
 
 export default function ComparePage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const { items, removeItem, clearCompare } = useCompareStore();
   const addToCart = useCartStore((state) => state.addItem);
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setIsAuthenticated(true);
-    setLoading(false);
+    // Simulate loading
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+    
+    return () => clearTimeout(timer);
   }, [router]);
 
   if (loading) {
@@ -34,10 +31,6 @@ export default function ComparePage() {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   if (items.length === 0) {

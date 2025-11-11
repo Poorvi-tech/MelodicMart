@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Package, Truck, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { ordersAPI } from '@/lib/apiService';
+import { orderAPI } from '@/lib/apiService';
 
 export default function OrdersPage() {
   const router = useRouter();
@@ -15,17 +15,12 @@ export default function OrdersPage() {
   useEffect(() => {
     const fetchOrders = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        const ordersData = await ordersAPI.getMyOrders();
+        const ordersData = await orderAPI.getAll();
         setOrders(ordersData);
       } catch (err: any) {
         setError(err.message || 'Failed to load orders');
-        if (err.message.includes('401') || err.message.includes('authorized')) {
+        // Redirect to login if unauthorized
+        if (err.message === 'API request failed') {
           router.push('/login');
         }
       } finally {

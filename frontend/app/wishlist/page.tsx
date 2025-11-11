@@ -9,20 +9,17 @@ import { Heart, ShoppingCart, Trash2, X } from 'lucide-react';
 
 export default function WishlistPage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const { items, removeItem, clearWishlist } = useWishlistStore();
   const addToCart = useCartStore((state) => state.addItem);
 
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setIsAuthenticated(true);
-    setLoading(false);
+    // Simulate loading
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+    
+    return () => clearTimeout(timer);
   }, [router]);
 
   useEffect(() => {
@@ -38,10 +35,6 @@ export default function WishlistPage() {
         </div>
       </div>
     );
-  }
-
-  if (!isAuthenticated) {
-    return null;
   }
 
   const handleAddToCart = (product: any) => {

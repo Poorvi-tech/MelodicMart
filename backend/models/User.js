@@ -32,6 +32,17 @@ const userSchema = new mongoose.Schema({
     zipCode: String,
     country: { type: String, default: 'India' }
   },
+  bio: {
+    type: String,
+    maxlength: 500
+  },
+  dateOfBirth: {
+    type: Date
+  },
+  gender: {
+    type: String,
+    enum: ['male', 'female', 'other', 'prefer-not-to-say']
+  },
   role: {
     type: String,
     enum: ['user', 'admin'],
@@ -44,6 +55,53 @@ const userSchema = new mongoose.Schema({
   avatar: {
     type: String,
     default: ''
+  },
+  // OTP fields for email verification
+  emailVerificationOTP: {
+    type: String
+  },
+  emailVerificationOTPExpires: {
+    type: Date
+  },
+  // OTP fields for password reset
+  passwordResetOTP: {
+    type: String
+  },
+  passwordResetOTPExpires: {
+    type: Date
+  },
+  // Settings fields
+  notifications: {
+    emailNotifications: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: true },
+    pushNotifications: { type: Boolean, default: true },
+    orderUpdates: { type: Boolean, default: true },
+    productUpdates: { type: Boolean, default: true },
+    promotionalEmails: { type: Boolean, default: false },
+    newsletter: { type: Boolean, default: true }
+  },
+  privacy: {
+    profileVisibility: { type: String, enum: ['public', 'friends', 'private'], default: 'public' },
+    activityStatus: { type: Boolean, default: true },
+    searchVisibility: { type: Boolean, default: true }
+  },
+  display: {
+    theme: { type: String, enum: ['light', 'dark', 'system'], default: 'system' },
+    language: { type: String, default: 'en' },
+    fontSize: { type: String, enum: ['small', 'medium', 'large', 'xlarge'], default: 'medium' },
+    animations: { type: Boolean, default: true }
+  },
+  communication: {
+    preferredContact: { type: String, enum: ['email', 'sms', 'phone'], default: 'email' },
+    timezone: { type: String, default: 'Asia/Kolkata' },
+    newsletter: { type: Boolean, default: true },
+    productUpdates: { type: Boolean, default: true },
+    marketingCommunications: { type: Boolean, default: false },
+    supportUpdates: { type: Boolean, default: true }
+  },
+  twoFactorEnabled: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

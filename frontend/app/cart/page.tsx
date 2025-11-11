@@ -9,20 +9,17 @@ import { useCartStore } from '@/lib/store';
 
 export default function CartPage() {
   const router = useRouter();
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
   const { items, updateQuantity, removeItem, getTotalPrice, clearCart } = useCartStore();
   
   useEffect(() => {
-    // Check if user is logged in
-    const token = localStorage.getItem('token');
-    if (!token) {
-      router.push('/login');
-      return;
-    }
-    setIsAuthenticated(true);
-    setLoading(false);
-  }, [router]);
+    // Simulate loading
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   if (loading) {
     return (
@@ -35,9 +32,6 @@ export default function CartPage() {
     );
   }
 
-  if (!isAuthenticated) {
-    return null;
-  }
   const totalPrice = getTotalPrice();
   const shippingFee = totalPrice >= 999 ? 0 : 99;
   const finalTotal = totalPrice + shippingFee;

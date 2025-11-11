@@ -7,6 +7,7 @@ import { authAPI } from '@/lib/apiService';
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [step, setStep] = useState<'form' | 'otp'>('form'); // Track registration step
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -14,9 +15,16 @@ export default function RegisterPage() {
     confirmPassword: '',
     phone: '',
   });
+  const [otpData, setOtpData] = useState({
+    email: '',
+    otp: '',
+  });
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(0);
 
+  // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
@@ -24,9 +32,19 @@ export default function RegisterPage() {
     });
   };
 
+  // Handle OTP input changes
+  const handleOtpChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setOtpData({
+      ...otpData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
+  // Handle registration form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setSuccess('');
 
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
@@ -44,13 +62,25 @@ export default function RegisterPage() {
       const { confirmPassword, ...registerData } = formData;
       const response = await authAPI.register(registerData);
       
-      // Save user data and token
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response));
+      // Move to OTP verification step
+      setStep('otp');
+      setOtpData({
+        ...otpData,
+        email: formData.email
+      });
+      setSuccess(response.message || 'Registration successful. Please check your email for verification OTP.');
       
-      // Redirect to home page
-      router.push('/');
-      router.refresh();
+      // Start resend timer
+      setResendTimer(60);
+      const timer = setInterval(() => {
+        setResendTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
     } catch (err: any) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -58,12 +88,199 @@ export default function RegisterPage() {
     }
   };
 
+  // Handle OTP verification
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      const response = await authAPI.verifyOTP(otpData);
+      
+      // Save user data and token
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response));
+      
+      setSuccess('Email verified successfully! Redirecting to homepage...');
+      
+      // Redirect to home page after a short delay
+      setTimeout(() => {
+        router.push('/');
+        router.refresh();
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || 'OTP verification failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle OTP resend
+  const handleResendOtp = async () => {
+    if (resendTimer > 0) return;
+    
+    setError('');
+    setSuccess('');
+    setLoading(true);
+
+    try {
+      await authAPI.resendOTP({ email: otpData.email });
+      setSuccess('OTP resent successfully. Please check your email.');
+      
+      // Restart resend timer
+      setResendTimer(60);
+      const timer = setInterval(() => {
+        setResendTimer(prev => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Render registration form
+  if (step === 'form') {
+    return (
+      <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
+        <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
+          <div className="text-center mb-8">
+            <h2 className="text-4xl font-bold text-gray-900 mb-2">Create Account</h2>
+            <p className="text-gray-600">Join our music community</p>
+          </div>
+
+          {error && (
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg">
+              {error}
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
+              {success}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div>
+              <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
+                Full Name
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                required
+                value={formData.name}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="John Doe"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                Email Address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="you@example.com"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                Phone Number (Optional)
+              </label>
+              <input
+                id="phone"
+                name="phone"
+                type="tel"
+                value={formData.phone}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="+91 9876543210"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={formData.password}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
+                Confirm Password
+              </label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                autoComplete="new-password"
+                required
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
+                placeholder="••••••••"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white font-bold text-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: 'linear-gradient(to right, #667eea, #764ba2)' }}
+            >
+              {loading ? 'Creating Account...' : 'Sign Up'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link href="/login" className="font-semibold text-purple-600 hover:text-purple-500">
+                Sign in
+              </Link>
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Render OTP verification form
   return (
     <div className="min-h-screen flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8" style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
       <div className="max-w-md w-full bg-white rounded-2xl shadow-2xl p-8">
         <div className="text-center mb-8">
-          <h2 className="text-4xl font-bold text-gray-900 mb-2">Create Account</h2>
-          <p className="text-gray-600">Join our music community</p>
+          <h2 className="text-4xl font-bold text-gray-900 mb-2">Verify Your Email</h2>
+          <p className="text-gray-600">Enter the OTP sent to {otpData.email}</p>
         </div>
 
         {error && (
@@ -72,105 +289,60 @@ export default function RegisterPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        {success && (
+          <div className="mb-4 p-4 bg-green-50 border border-green-200 text-green-700 rounded-lg">
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleVerifyOtp} className="space-y-5">
           <div>
-            <label htmlFor="name" className="block text-sm font-semibold text-gray-700 mb-2">
-              Full Name
+            <label htmlFor="otp" className="block text-sm font-semibold text-gray-700 mb-2">
+              Enter OTP
             </label>
             <input
-              id="name"
-              name="name"
+              id="otp"
+              name="otp"
               type="text"
               required
-              value={formData.name}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="John Doe"
+              value={otpData.otp}
+              onChange={handleOtpChange}
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition text-center text-2xl tracking-widest"
+              placeholder="------"
+              maxLength={6}
             />
           </div>
 
-          <div>
-            <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-              Email Address
-            </label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              required
-              value={formData.email}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="you@example.com"
-            />
+          <div className="flex flex-col sm:flex-row gap-3">
+            <button
+              type="submit"
+              disabled={loading || otpData.otp.length !== 6}
+              className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white font-bold text-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ background: 'linear-gradient(to right, #667eea, #764ba2)' }}
+            >
+              {loading ? 'Verifying...' : 'Verify Email'}
+            </button>
+            
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={loading || resendTimer > 0}
+              className="flex-1 flex justify-center py-3 px-4 border border-gray-300 rounded-lg shadow-lg text-gray-700 font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resendTimer > 0 ? `Resend in ${resendTimer}s` : 'Resend OTP'}
+            </button>
           </div>
-
-          <div>
-            <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-              Phone Number (Optional)
-            </label>
-            <input
-              id="phone"
-              name="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="+91 9876543210"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
-              Password
-            </label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={formData.password}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-semibold text-gray-700 mb-2">
-              Confirm Password
-            </label>
-            <input
-              id="confirmPassword"
-              name="confirmPassword"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={formData.confirmPassword}
-              onChange={handleChange}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition"
-              placeholder="••••••••"
-            />
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-white font-bold text-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
-            style={{ background: 'linear-gradient(to right, #667eea, #764ba2)' }}
-          >
-            {loading ? 'Creating Account...' : 'Sign Up'}
-          </button>
         </form>
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link href="/login" className="font-semibold text-purple-600 hover:text-purple-500">
-              Sign in
-            </Link>
+            Wrong email?{' '}
+            <button 
+              onClick={() => setStep('form')}
+              className="font-semibold text-purple-600 hover:text-purple-500"
+            >
+              Go back to registration
+            </button>
           </p>
         </div>
       </div>

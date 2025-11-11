@@ -49,9 +49,34 @@ export default function AdminChats() {
   const [isAdminTyping, setIsAdminTyping] = useState(false); // Track if admin is typing
   const [typingTimeout, setTypingTimeout] = useState<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const audioRefs = useRef<Record<string, HTMLAudioElement | null>>({});
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [isAtBottom, setIsAtBottom] = useState(true);
+
+  const handleScroll = () => {
+    if (messagesContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+      const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px tolerance
+      setIsAtBottom(isAtBottom);
+    }
+  };
+
+  const scrollToBottom = () => {
+    // Use requestAnimationFrame for better performance
+    requestAnimationFrame(() => {
+      if (messagesEndRef.current) {
+        messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
+    });
+  };
+
+  const scrollToTop = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
 
   useEffect(() => {
     // Check admin access
@@ -85,6 +110,26 @@ export default function AdminChats() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [selectedChat?.messages]);
+
+  useEffect(() => {
+    // Only scroll to bottom when selected chat changes, not when messages update
+    // This prevents auto-scrolling when new messages arrive while user is reading older messages
+    if (selectedChat) {
+      // Check if user is already at the bottom or if this is a new chat selection
+      if (messagesContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = messagesContainerRef.current;
+        const isAtBottom = scrollTop + clientHeight >= scrollHeight - 10; // 10px tolerance
+        
+        // Only scroll to bottom if user is already at bottom or this is a new chat
+        if (isAtBottom) {
+          scrollToBottom();
+        }
+      } else {
+        // Fallback to scrolling to bottom for new chat selections
+        scrollToBottom();
+      }
+    }
+  }, [selectedChat]);
 
   const loadChats = async () => {
     try {
@@ -187,9 +232,25 @@ export default function AdminChats() {
   };
 
   const handleSelectChat = async (chat: Chat) => {
+    // Immediately update the selected chat to provide instant feedback
     setSelectedChat(chat);
+    
     // Mark messages as read when admin opens the chat
-    await markChatAsRead(chat._id);
+    try {
+      await markChatAsRead(chat._id);
+    } catch (error) {
+      console.error('Error marking chat as read:', error);
+    }
+    
+    // Hide chat options when switching chats
+    setShowChatOptions(false);
+    setSelectedMessageId(null);
+    
+    // Set isAtBottom to true when selecting a new chat
+    setIsAtBottom(true);
+    
+    // Scroll to bottom after selecting chat
+    scrollToBottom();
   };
 
   const handleSendReply = async (e: React.FormEvent) => {
@@ -487,9 +548,9 @@ export default function AdminChats() {
 
         {/* Clean Chat Interface */}
         <div className="bg-white rounded-xl shadow-md overflow-hidden">
-          <div className="grid grid-cols-1 md:grid-cols-3 h-[650px]">
+          <div className="grid grid-cols-1 md:grid-cols-3 h-[calc(100vh-200px)]">
             {/* Buyer List - Clean & Minimal */}
-            <div className="border-r border-gray-200 overflow-y-auto bg-purple-50">
+            <div className="border-r border-gray-200 overflow-y-auto bg-purple-50 min-h-0">
               {chats.length === 0 ? (
                 <div className="text-center py-16">
                   <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
@@ -503,12 +564,15 @@ export default function AdminChats() {
                   <div
                     key={chat._id}
                     onClick={() => handleSelectChat(chat)}
-                    className={`p-4 border-b border-gray-200 cursor-pointer transition ${
+                    className={`p-4 border-b border-gray-200 cursor-pointer transition-all duration-200 relative ${
                       selectedChat?._id === chat._id
-                        ? 'bg-white border-l-4 border-l-purple-600 shadow-sm'
-                        : 'hover:bg-white'
+                        ? 'bg-white border-l-4 border-l-purple-600 shadow-md transform scale-[1.02]'
+                        : 'hover:bg-purple-50'
                     }`}
                   >
+                    {selectedChat?._id === chat._id && (
+                      <div className="absolute top-0 right-0 w-3 h-3 bg-purple-600 rounded-full"></div>
+                    )}
                     {/* Buyer Info */}
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-3">
@@ -544,7 +608,7 @@ export default function AdminChats() {
             </div>
 
             {/* Chat Messages Area - Clean */}
-            <div className="md:col-span-2 flex flex-col">
+            <div className="md:col-span-2 flex flex-col min-h-0">
               {selectedChat ? (
                 <>
                   {/* Simple Chat Header */}
@@ -594,7 +658,11 @@ export default function AdminChats() {
                   </div>
 
                   {/* Messages - Clean Design */}
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-purple-50">
+                  <div 
+                    ref={messagesContainerRef} 
+                    className="flex-1 overflow-y-auto p-4 space-y-3 bg-purple-50 relative"
+                    onScroll={handleScroll}
+                  >
                     {selectedChat.messages.map((msg, index) => (
                       <div
                         key={index}
@@ -722,7 +790,21 @@ export default function AdminChats() {
                     )}
                     <div ref={messagesEndRef} />
                   </div>
-
+                  
+                  {/* New messages indicator */}
+                  {!isAtBottom && (
+                    <div className="absolute bottom-20 right-4">
+                      <button
+                        onClick={scrollToBottom}
+                        className="bg-purple-600 text-white rounded-full p-2 shadow-lg hover:bg-purple-700 transition-all transform hover:scale-110"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
+                        </svg>
+                      </button>
+                    </div>
+                  )}
+                  
                   {/* Reply Box - Simple */}
                   <form onSubmit={handleSendReply} className="p-4 bg-white border-t border-purple-100">
                     <div className="flex gap-3">

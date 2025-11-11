@@ -49,9 +49,9 @@ export default function BlogsPage() {
   };
 
   return (
-    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #e0f7fa 0%, #b2ebf2 100%)' }}>
+    <div className="min-h-screen" style={{ background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)' }}>
       {/* Hero Section */}
-      <section className="relative py-20 overflow-hidden" style={{ background: 'linear-gradient(135deg, #00bcd4 0%, #26c6da 50%, #4dd0e1 100%)' }}>
+      <section className="relative py-20 overflow-hidden" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #312e81 50%, #4338ca 100%)' }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 left-10 text-9xl animate-bounce-slow">📚</div>
           <div className="absolute bottom-10 right-10 text-9xl animate-float">🎵</div>
@@ -60,11 +60,11 @@ export default function BlogsPage() {
         
         <div className="max-w-7xl mx-auto px-4 relative z-10">
           <div className="text-center">
-            <div className="inline-block text-white px-4 py-2 rounded-full text-sm font-bold mb-6 shadow-lg animate-pulse" style={{ background: 'linear-gradient(to right, #ff6f00, #ff8f00)' }}>
+            <div className="inline-block text-white px-4 py-2 rounded-full text-sm font-bold mb-6 shadow-lg animate-pulse" style={{ background: 'linear-gradient(to right, #3b82f6, #6366f1)', boxShadow: '0 10px 30px rgba(59, 130, 246, 0.3)' }}>
               📖 Learn & Explore
             </div>
             <h1 className="text-5xl md:text-7xl font-bold mb-6 text-white animate-scaleIn">
-              Music <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(to right, #ff6f00, #ff8f00, #ffa726)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Blogs</span>
+              Music <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(to right, #93c5fd, #a78bfa, #c7d2fe)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Blogs</span>
             </h1>
             <p className="text-xl md:text-2xl text-white/90 mb-8 max-w-3xl mx-auto">
               Discover guides, tutorials, and insights about musical instruments from YouTube, blogs, and expert articles
@@ -79,7 +79,7 @@ export default function BlogsPage() {
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full px-6 py-4 pl-14 rounded-full bg-white/95 backdrop-blur-sm text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-4 shadow-2xl text-lg"
-                  style={{ '--tw-ring-color': '#ff6f00' } as any}
+                  style={{ '--tw-ring-color': '#3b82f6' } as any}
                 />
                 <BookOpen className="absolute left-5 top-1/2 transform -translate-y-1/2 w-6 h-6 text-gray-400" />
               </div>
@@ -105,7 +105,7 @@ export default function BlogsPage() {
                     ? 'text-white'
                     : 'bg-white text-gray-700 hover:shadow-xl'
                 }`}
-                style={selectedCategory === category.id ? { background: 'linear-gradient(to right, #00897b, #00acc1)' } : {}}
+                style={selectedCategory === category.id ? { background: 'linear-gradient(to right, #3b82f6, #6366f1)' } : {}}
               >
                 {category.name} ({category.count})
               </button>
@@ -141,7 +141,7 @@ export default function BlogsPage() {
                     rel="noopener noreferrer"
                     className="group bg-white rounded-2xl shadow-xl overflow-hidden transition-all duration-300 transform hover:-translate-y-3 hover:scale-105 hover:shadow-2xl border-2 animate-fadeIn"
                     style={{ 
-                      borderColor: '#b2ebf2',
+                      borderColor: '#c7d2fe',
                       animationDelay: `${index * 100}ms`
                     }}
                   >
@@ -163,14 +163,14 @@ export default function BlogsPage() {
                       </div>
 
                       {/* Category Badge */}
-                      <div className="absolute top-3 left-3 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg" style={{ background: 'linear-gradient(to right, #ff6f00, #ff8f00)' }}>
+                      <div className="absolute top-3 left-3 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg" style={{ background: 'linear-gradient(to right, #3b82f6, #6366f1)' }}>
                         {blog.category}
                       </div>
                     </div>
 
                     {/* Content */}
                     <div className="p-6">
-                      <h3 className="text-xl font-bold mb-3 text-gray-900 line-clamp-2 group-hover:text-cyan-600 transition-colors">
+                      <h3 className="text-xl font-bold mb-3 text-gray-900 line-clamp-2 group-hover:text-indigo-600 transition-colors">
                         {blog.title}
                       </h3>
                       <p className="text-gray-600 mb-4 line-clamp-3 text-sm">
@@ -193,7 +193,7 @@ export default function BlogsPage() {
 
                       {/* Read More Button */}
                       <div className="flex items-center justify-between">
-                        <span className="text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 group-hover:gap-3 transition-all" style={{ background: 'linear-gradient(to right, #00897b, #00acc1)' }}>
+                        <span className="text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 group-hover:gap-3 transition-all" style={{ background: 'linear-gradient(to right, #3b82f6, #6366f1)' }}>
                           Explore Now
                           <ExternalLink className="w-4 h-4" />
                         </span>
@@ -208,7 +208,7 @@ export default function BlogsPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 relative overflow-hidden" style={{ background: 'linear-gradient(to right, #00897b, #00acc1, #00bcd4)' }}>
+      <section className="py-20 relative overflow-hidden" style={{ background: 'linear-gradient(to right, #3b82f6, #6366f1, #818cf8)' }}>
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-10 right-10 text-9xl animate-float">🎼</div>
           <div className="absolute bottom-10 left-10 text-9xl animate-bounce-slow">🎧</div>
@@ -224,7 +224,7 @@ export default function BlogsPage() {
           <Link
             href="/"
             className="inline-block text-white px-8 py-4 rounded-full font-bold text-lg transition-all transform hover:scale-110 shadow-2xl animate-pulse-glow"
-            style={{ background: 'linear-gradient(to right, #ff6f00, #ff8f00)' }}
+            style={{ background: 'linear-gradient(to right, #3b82f6, #6366f1)' }}
           >
             Browse Instruments 🎵
           </Link>

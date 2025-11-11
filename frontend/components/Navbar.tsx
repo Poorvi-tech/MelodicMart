@@ -471,6 +471,17 @@ export default function Navbar() {
                           My Profile
                         </Link>
                         <Link 
+                          href="/profile/settings" 
+                          className="block px-4 py-2 hover:bg-blue-50 transition hover:scale-105"
+                          onClick={() => {
+                            if (typeof window !== 'undefined' && (window as any).incrementInteraction) {
+                              (window as any).incrementInteraction();
+                            }
+                          }}
+                        >
+                          Settings
+                        </Link>
+                        <Link 
                           href="/orders" 
                           className="block px-4 py-2 hover:bg-blue-50 transition hover:scale-105"
                           onClick={() => {
@@ -757,6 +768,17 @@ export default function Navbar() {
                           }}
                         >
                           My Profile
+                        </Link>
+                        <Link 
+                          href="/profile/settings" 
+                          className="block py-1 text-indigo-700 hover:text-blue-600 transition ml-4 hover:scale-105"
+                          onClick={() => {
+                            if (typeof window !== 'undefined' && (window as any).incrementInteraction) {
+                              (window as any).incrementInteraction();
+                            }
+                          }}
+                        >
+                          Settings
                         </Link>
                         <Link 
                           href="/orders" 

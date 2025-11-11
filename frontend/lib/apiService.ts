@@ -1,46 +1,50 @@
-// Determine API URL based on environment
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== 'undefined' && window.location.hostname === 'localhost' 
-    ? 'http://localhost:5000/api' 
-    : 'https://melodicmart.onrender.com/api');
+// API Service for MelodicMart
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
 
-console.log('API_URL being used:', API_URL); // Debug line
-
-// Utility function to get token
-const getToken = (): string | null => {
-  if (typeof window !== 'undefined') {
-    return localStorage.getItem('token');
-  }
-  return null;
-};
-
-// Utility function to handle fetch
-const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
-  const token = getToken();
+export const fetchAPI = async (endpoint: string, options: RequestInit = {}) => {
+  // Try to get token from localStorage first, then check cookies as fallback
+  let token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   
-  const config: RequestInit = {
+  // If no token in localStorage, try to get it from cookies
+  if (!token && typeof window !== 'undefined') {
+    const cookies = document.cookie.split(';');
+    for (let cookie of cookies) {
+      const [name, value] = cookie.trim().split('=');
+      if (name === 'token') {
+        token = value;
+        break;
+      }
+    }
+  }
+  
+  // Check if this is a multipart/form-data request
+  const isFormData = options.body instanceof FormData;
+  
+  const config = {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-      ...options.headers,
-    },
+      // Only set Content-Type to application/json if it's not a FormData request
+      ...!isFormData && {
+        'Content-Type': 'application/json',
+      },
+      ...token && {
+        Authorization: `Bearer ${token}`
+      },
+      ...options.headers
+    }
   };
 
   // Ensure endpoint starts with / and remove any double slashes
   const normalizedEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const url = `${API_URL}${normalizedEndpoint}`.replace(/([^:]\/)\/+/g, "$1");
-
+  
   console.log('Making API request to:', url); // Debug line
 
   const response = await fetch(url, config);
   
   if (!response.ok) {
-    if (response.status === 401 && typeof window !== 'undefined') {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
+    // Instead of redirecting to login here, we'll throw the error
+    // and let the middleware handle the redirect
     const error = await response.json();
     throw new Error(error.message || 'API request failed');
   }
@@ -64,6 +68,34 @@ export const authAPI = {
     });
   },
 
+  verifyOTP: async (data: { email: string; otp: string }) => {
+    return fetchAPI('/auth/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  resendOTP: async (data: { email: string }) => {
+    return fetchAPI('/auth/resend-otp', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  forgotPassword: async (data: { email: string }) => {
+    return fetchAPI('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  resetPassword: async (data: { email: string; otp: string; newPassword: string }) => {
+    return fetchAPI('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   getProfile: async () => {
     return fetchAPI('/auth/profile');
   },
@@ -73,6 +105,22 @@ export const authAPI = {
       method: 'PUT',
       body: JSON.stringify(data),
     });
+  },
+  
+  uploadAvatar: async (file: File) => {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    
+    return fetchAPI('/auth/profile/avatar', {
+      method: 'POST',
+      body: formData,
+      // Don't set Content-Type header, let browser set it with boundary
+      headers: {}
+    });
+  },
+  
+  getUserStats: async () => {
+    return fetchAPI('/auth/profile/stats');
   },
 };
 
@@ -139,74 +187,69 @@ export const categoriesAPI = {
   },
 };
 
-// Orders API
-export const ordersAPI = {
-  create: async (data: {
-    orderItems: any[];
-    shippingAddress: any;
-    paymentMethod: string;
-    itemsPrice: number;
-    taxPrice: number;
-    shippingPrice: number;
-    totalPrice: number;
-  }) => {
+// Wishlist API
+export const wishlistAPI = {
+  getAll: async () => {
+    return fetchAPI('/wishlist');
+  },
+
+  addItem: async (productId: string) => {
+    return fetchAPI('/wishlist', {
+      method: 'POST',
+      body: JSON.stringify({ productId }),
+    });
+  },
+
+  removeItem: async (productId: string) => {
+    return fetchAPI(`/wishlist/${productId}`, {
+      method: 'DELETE',
+    });
+  },
+  
+  getCount: async () => {
+    const response = await fetchAPI('/wishlist');
+    return response.count || 0;
+  },
+};
+
+// Stock Alert API
+export const stockAlertAPI = {
+  create: async (data: { productId: string; email: string }) => {
+    return fetchAPI('/stock-alerts', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// Contact API
+export const contactAPI = {
+  sendMessage: async (data: { name: string; email: string; phone?: string; subject: string; message: string }) => {
+    return fetchAPI('/contact', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+// Order API
+export const orderAPI = {
+  create: async (data: any) => {
     return fetchAPI('/orders', {
       method: 'POST',
       body: JSON.stringify(data),
     });
   },
 
-  getById: async (id: string) => {
-    return fetchAPI(`/orders/${id}`);
+  getAll: async () => {
+    return fetchAPI('/orders');
   },
-
+  
   getMyOrders: async () => {
     return fetchAPI('/orders/myorders');
   },
 
-  getAll: async () => {
-    return fetchAPI('/orders');
+  getById: async (id: string) => {
+    return fetchAPI(`/orders/${id}`);
   },
-
-  updateStatus: async (id: string, status: string, trackingNumber?: string) => {
-    return fetchAPI(`/orders/${id}/status`, {
-      method: 'PUT',
-      body: JSON.stringify({ status, trackingNumber }),
-    });
-  },
-
-  updateToPaid: async (id: string, paymentResult: any) => {
-    return fetchAPI(`/orders/${id}/pay`, {
-      method: 'PUT',
-      body: JSON.stringify(paymentResult),
-    });
-  },
-};
-
-// Contact Messages API
-export const contactAPI = {
-  getAllMessages: async () => {
-    return fetchAPI('/contact/messages');
-  },
-
-  getMessageById: async (id: string) => {
-    return fetchAPI(`/contact/messages/${id}`);
-  },
-
-  replyToMessage: async (id: string, replyMessage: string) => {
-    return fetchAPI(`/contact/messages/${id}/reply`, {
-      method: 'POST',
-      body: JSON.stringify({ replyMessage }),
-    });
-  },
-};
-
-
-
-export default {
-  auth: authAPI,
-  products: productsAPI,
-  categories: categoriesAPI,
-  orders: ordersAPI,
-  contact: contactAPI,
 };

@@ -53,14 +53,50 @@ exports.sendContactEmail = async (data) => {
 };
 
 // Send confirmation email to customer
-exports.sendConfirmationEmail = async (customerEmail, customerName) => {
+exports.sendConfirmationEmail = async (customerEmail, customerName, otp = null) => {
   const transporter = createTransporter();
 
-  const mailOptions = {
-    from: process.env.EMAIL_FROM,
-    to: customerEmail,
-    subject: 'Thank you for contacting Music Haven!',
-    html: `
+  let subject, htmlContent;
+
+  if (otp) {
+    // OTP email for registration
+    subject = 'Verify Your Email for Music Haven';
+    htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Email Verification</h1>
+        </div>
+        
+        <div style="padding: 40px; background: #f9f9f9;">
+          <h2 style="color: #333;">Dear ${customerName},</h2>
+          
+          <p style="color: #555; line-height: 1.8; font-size: 16px;">
+            Thank you for registering with Music Haven! Please use the following OTP to verify your email address:
+          </p>
+          
+          <div style="background: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center; border: 2px dashed #667eea;">
+            <h3 style="color: #667eea; margin-top: 0; font-size: 32px; letter-spacing: 5px;">${otp}</h3>
+            <p style="color: #777; margin-bottom: 0;">This OTP will expire in 10 minutes</p>
+          </div>
+          
+          <p style="color: #555; line-height: 1.8;">
+            If you didn't create an account with us, please ignore this email.
+          </p>
+        </div>
+        
+        <div style="background: #333; padding: 20px; text-align: center; color: white;">
+          <p style="margin: 5px 0;">Music Haven</p>
+          <p style="margin: 5px 0; font-size: 14px;">Your Musical Instruments Store</p>
+          <p style="margin: 5px 0; font-size: 12px; color: #999;">
+            Email: ${process.env.EMAIL_USER} | Phone: +91 9074554804
+          </p>
+        </div>
+      </div>
+    `;
+  } else {
+    // Regular confirmation email
+    subject = 'Thank you for contacting Music Haven!';
+    htmlContent = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
           <h1 style="color: white; margin: 0;">Thank You for Reaching Out!</h1>
@@ -99,6 +135,58 @@ exports.sendConfirmationEmail = async (customerEmail, customerName) => {
               Browse Our Store
             </a>
           </div>
+        </div>
+        
+        <div style="background: #333; padding: 20px; text-align: center; color: white;">
+          <p style="margin: 5px 0;">Music Haven</p>
+          <p style="margin: 5px 0; font-size: 14px;">Your Musical Instruments Store</p>
+          <p style="margin: 5px 0; font-size: 12px; color: #999;">
+            Email: ${process.env.EMAIL_USER} | Phone: +91 9074554804
+          </p>
+        </div>
+      </div>
+    `;
+  }
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: customerEmail,
+    subject: subject,
+    html: htmlContent,
+  };
+
+  await transporter.sendMail(mailOptions);
+};
+
+// Send password reset OTP email
+exports.sendPasswordResetOTP = async (customerEmail, customerName, otp) => {
+  const transporter = createTransporter();
+
+  const mailOptions = {
+    from: process.env.EMAIL_FROM,
+    to: customerEmail,
+    subject: 'Password Reset OTP - Music Haven',
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center;">
+          <h1 style="color: white; margin: 0;">Password Reset Request</h1>
+        </div>
+        
+        <div style="padding: 40px; background: #f9f9f9;">
+          <h2 style="color: #333;">Dear ${customerName},</h2>
+          
+          <p style="color: #555; line-height: 1.8; font-size: 16px;">
+            We received a request to reset your password. Please use the following OTP to reset your password:
+          </p>
+          
+          <div style="background: white; padding: 30px; border-radius: 10px; margin: 30px 0; text-align: center; border: 2px dashed #667eea;">
+            <h3 style="color: #667eea; margin-top: 0; font-size: 32px; letter-spacing: 5px;">${otp}</h3>
+            <p style="color: #777; margin-bottom: 0;">This OTP will expire in 10 minutes</p>
+          </div>
+          
+          <p style="color: #555; line-height: 1.8;">
+            If you didn't request a password reset, please ignore this email or contact our support team.
+          </p>
         </div>
         
         <div style="background: #333; padding: 20px; text-align: center; color: white;">

@@ -4,6 +4,7 @@ console.log('MONGODB_URI:', process.env.MONGODB_URI); // Debug line
 const express = require('express');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const path = require('path');
 const connectDB = require('./config/db');
 
 // Import routes
@@ -15,6 +16,7 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 const stockAlertRoutes = require('./routes/stockAlertRoutes');
 const chatRoutes = require('./routes/chatRoutes');
 const contactRoutes = require('./routes/contactRoutes');
+const settingsRoutes = require('./routes/settingsRoutes');
 
 // Connect to database
 connectDB();
@@ -32,6 +34,9 @@ app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+
+// Serve static files from uploads directory
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Root route - Welcome message
 app.get('/', (req, res) => {
@@ -67,6 +72,7 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/stock-alerts', stockAlertRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {
