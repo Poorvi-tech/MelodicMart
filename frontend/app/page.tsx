@@ -8,30 +8,27 @@ import { products as staticProducts } from '@/data/products';
 import { testimonials, faqs } from '@/data/static-data';
 import { useState, useEffect } from 'react';
 import { useCartStore } from '@/lib/store';
-import { productsAPI, categoriesAPI } from '@/lib/apiService';
-
 
 export default function Home() {
   const [openFaq, setOpenFaq] = useState<string | null>(null);
   const [categories, setCategories] = useState<any[]>(staticCategories);
+  // Use static featured products directly instead of fetching from API
   const [featuredProducts, setFeaturedProducts] = useState<any[]>(staticProducts.filter((p) => p.featured));
   const [loading, setLoading] = useState(true);
+
   const addItem = useCartStore((state) => state.addItem);
 
   useEffect(() => {
-    // Fetch real data from backend
+    // Fetch real data from backend for categories only
     const fetchData = async () => {
       try {
+        // Import categoriesAPI dynamically to avoid server-side issues
+        const { categoriesAPI } = await import('@/lib/apiService');
+        
         // Fetch categories
         const categoriesData = await categoriesAPI.getAll(true);
         if (categoriesData && categoriesData.length > 0) {
           setCategories(categoriesData);
-        }
-
-        // Fetch featured products
-        const productsResponse = await productsAPI.getAll({ featured: true, limit: 4 });
-        if (productsResponse && productsResponse.products && productsResponse.products.length > 0) {
-          setFeaturedProducts(productsResponse.products);
         }
       } catch (error) {
         console.log('Using static data as fallback');

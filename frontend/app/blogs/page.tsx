@@ -19,14 +19,14 @@ export default function BlogsPage() {
 
   const getCategoryImage = (category: string) => {
     switch(category) {
-      case 'Guitar': return 'https://images.unsplash.com/photo-1516924962500-2b4b3b99ea02?w=800&h=600&fit=crop';
+      case 'Guitar': return 'https://images.unsplash.com/photo-1516924962500-2b4b3b99ea02?w=800&h=800&fit=crop';
       case 'Percussion': return 'https://images.unsplash.com/photo-1571327073757-71d13c24de30?w=800&h=600&fit=crop';
       case 'Wind': return 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=800&h=600&fit=crop';
       case 'Keyboard': return 'https://images.unsplash.com/photo-1520523839897-bd0b52f945a0?w=800&h=600&fit=crop';
       case 'String': return 'https://images.unsplash.com/photo-1612225330812-01a9c6b355ec?w=800&h=600&fit=crop';
-      case 'Traditional': return 'https://images.unsplash.com/photo-1460036521480-ff49c08c2781?w=800&h=600&fit=crop';
-      case 'General': return 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800&h=600&fit=crop';
-      default: return 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=800&h=600&fit=crop';
+      case 'Traditional': return 'https://m.media-amazon.com/images/I/41d3YhDIpJL._SY300_SX300_QL70_ML2_.jpg';
+      case 'General': return 'https://m.media-amazon.com/images/I/312doyExuVS._SX300_SY300_QL70_ML2_.jpg';
+      default: return 'https://storage.googleapis.com/stateless-blog-g4m-co-uk/2022/01/Student-Electro-Acoustic-Guitar-by-Gear4music.jpg';
     }
   };
 

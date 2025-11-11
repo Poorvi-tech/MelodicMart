@@ -39,7 +39,7 @@ export const products: Product[] = [
     videoThumbnail: "https://images.unsplash.com/photo-1516924962500-2b4b3b99ea02?w=400&h=300&fit=crop",
     userPhotos: [
       {
-        url: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&h=400&fit=crop",
+        url: "https://img.freepik.com/premium-photo/musical-instrument-acoustic-guitar-hard-case-black-background_662322-855.jpg?w=2000",
         user: "Rahul Sharma",
         caption: "Amazing sound quality! Perfect for my performances.",
         uploadedAt: "2024-01-15"
@@ -89,7 +89,7 @@ export const products: Product[] = [
     description: "Professional-grade acoustic guitar with superior projection and balanced tone",
     price: 18999,
     originalPrice: 22999,
-    images: ["https://images.unsplash.com/photo-1516924962500-2b4b3b99ea02?w=800&h=800&fit=crop"],
+    images: ["https://images.unsplash.com/photo-1550985616-10810253b84d?w=800&h=800&fit=crop"],
     category: "string-instruments",
     subcategory: "Guitar",
     inStock: true,
@@ -255,7 +255,7 @@ export const products: Product[] = [
         uploadedAt: "2024-01-20"
       },
       {
-        url: "https://images.unsplash.com/photo-1511379938547-c1f69419868d?w=400&h=400&fit=crop",
+        url: "https://m.media-amazon.com/images/I/31aY1i7l6EL._SX300_SY300_QL70_ML2_.jpg",
         user: "Amit Kumar",
         caption: "Top quality bamboo. Highly recommend!",
         uploadedAt: "2024-01-18"
