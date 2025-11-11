@@ -6,7 +6,7 @@ import {
   Users, Package, ShoppingCart, DollarSign, TrendingUp, 
   Eye, Edit, Trash2, CheckCircle, XCircle, Clock, MessageCircle, Mail
 } from 'lucide-react';
-import { ordersAPI, productsAPI, contactAPI } from '@/lib/apiService';
+import { orderAPI, productsAPI, contactAPI } from '@/lib/apiService';
 
 // Separate component for the admin dashboard content that uses useSearchParams
 function AdminDashboardContent() {
@@ -55,7 +55,7 @@ function AdminDashboardContent() {
 
       try {
         // Fetch all orders (admin only)
-        const ordersData = await ordersAPI.getAll();
+        const ordersData = await orderAPI.getAll();
         setOrders(ordersData);
 
         // Fetch all products
@@ -513,14 +513,14 @@ function AdminDashboardContent() {
                                   try {
                                     // In a real implementation, you would have a proper payment verification flow
                                     // For now, we'll just mark it as paid
-                                    await ordersAPI.updateToPaid(order._id, {
+                                    await orderAPI.updateToPaid(order._id, {
                                       id: `manual_${Date.now()}`,
                                       status: 'completed',
                                       update_time: new Date().toISOString(),
                                       email_address: order.user?.email || ''
                                     });
                                     // Refresh orders
-                                    const ordersData = await ordersAPI.getAll();
+                                    const ordersData = await orderAPI.getAll();
                                     setOrders(ordersData);
                                     alert('Payment marked as completed!');
                                   } catch (error) {

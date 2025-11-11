@@ -230,6 +230,17 @@ export const contactAPI = {
       body: JSON.stringify(data),
     });
   },
+  
+  getAllMessages: async () => {
+    return fetchAPI('/contact/messages');
+  },
+  
+  replyToMessage: async (id: string, replyMessage: string) => {
+    return fetchAPI(`/contact/messages/${id}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ replyMessage }),
+    });
+  }
 };
 
 // Order API
@@ -252,4 +263,18 @@ export const orderAPI = {
   getById: async (id: string) => {
     return fetchAPI(`/orders/${id}`);
   },
+  
+  updateToPaid: async (id: string, paymentResult: any) => {
+    return fetchAPI(`/orders/${id}/pay`, {
+      method: 'PUT',
+      body: JSON.stringify(paymentResult),
+    });
+  },
+  
+  updateStatus: async (id: string, statusData: any) => {
+    return fetchAPI(`/orders/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify(statusData),
+    });
+  }
 };
