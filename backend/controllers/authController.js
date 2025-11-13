@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { TempRegistration } = require('../models/User'); // Add TempRegistration model
 const generateToken = require('../utils/generateToken');
 const { sendConfirmationEmail, sendPasswordResetOTP } = require('../utils/emailService');
 const upload = require('../utils/upload');
@@ -17,18 +18,25 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    // Check if user exists
+    // Check if user exists in database
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists with this email' });
+    }
+
+    // Check if there's a pending registration for this email
+    const pendingRegistration = await TempRegistration.findOne({ email });
+    if (pendingRegistration) {
+      // If pending registration exists, remove it (user can restart registration)
+      await TempRegistration.deleteOne({ email });
     }
 
     // Generate OTP for email verification
     const otp = generateOTP();
     const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
 
-    // Create user with OTP (not verified yet)
-    const user = await User.create({
+    // Store registration data temporarily in database
+    const tempRegistration = await TempRegistration.create({
       name,
       email,
       password,
@@ -41,16 +49,12 @@ exports.register = async (req, res) => {
     try {
       await sendConfirmationEmail(email, name, otp);
       res.status(201).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        message: 'Registration successful. Please check your email for verification OTP.'
+        email: email,
+        message: 'Registration initiated. Please check your email for verification OTP.'
       });
     } catch (emailError) {
-      // If email fails, delete the user and return error
-      await User.findByIdAndDelete(user._id);
+      // If email fails, remove from pending registrations
+      await TempRegistration.deleteOne({ email });
       res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
     }
   } catch (error) {
@@ -65,44 +69,83 @@ exports.verifyOTP = async (req, res) => {
   try {
     const { email, otp } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+    // Check if there's a pending registration for this email
+    const pendingRegistration = await TempRegistration.findOne({ email });
+    
+    if (!pendingRegistration) {
+      // Check if user already exists in database
+      const user = await User.findOne({ email });
+      
+      if (!user) {
+        return res.status(404).json({ message: 'Registration not found. Please register first.' });
+      }
+      
+      // Check if user is already verified
+      if (user.isVerified) {
+        return res.status(400).json({ message: 'User is already verified' });
+      }
+      
+      // Check if OTP is correct and not expired
+      if (user.emailVerificationOTP !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+      
+      if (user.emailVerificationOTPExpires < Date.now()) {
+        return res.status(400).json({ message: 'OTP has expired' });
+      }
+      
+      // Update user as verified and clear OTP fields
+      user.isVerified = true;
+      user.emailVerificationOTP = undefined;
+      user.emailVerificationOTPExpires = undefined;
+      
+      await user.save();
+      
+      res.status(200).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified,
+        token: generateToken(user._id),
+        message: 'Email verified successfully'
+      });
+    } else {
+      // Handle pending registration verification
+      
+      // Check if OTP is correct and not expired
+      if (pendingRegistration.emailVerificationOTP !== otp) {
+        return res.status(400).json({ message: 'Invalid OTP' });
+      }
+      
+      if (pendingRegistration.emailVerificationOTPExpires < Date.now()) {
+        return res.status(400).json({ message: 'OTP has expired' });
+      }
+      
+      // Create user in database now that verification is successful
+      const user = await User.create({
+        name: pendingRegistration.name,
+        email: pendingRegistration.email,
+        password: pendingRegistration.password,
+        phone: pendingRegistration.phone,
+        isVerified: true
+      });
+      
+      // Remove from pending registrations
+      await TempRegistration.deleteOne({ email });
+      
+      res.status(200).json({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        role: user.role,
+        isVerified: user.isVerified,
+        token: generateToken(user._id),
+        message: 'Email verified successfully'
+      });
     }
-
-    // Check if user is already verified
-    if (user.isVerified) {
-      return res.status(400).json({ message: 'User is already verified' });
-    }
-
-    // Check if OTP is correct and not expired
-    if (user.emailVerificationOTP !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    if (user.emailVerificationOTPExpires < Date.now()) {
-      return res.status(400).json({ message: 'OTP has expired' });
-    }
-
-    // Update user as verified and clear OTP fields
-    user.isVerified = true;
-    user.emailVerificationOTP = undefined;
-    user.emailVerificationOTPExpires = undefined;
-
-    await user.save();
-
-    res.status(200).json({
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      phone: user.phone,
-      role: user.role,
-      isVerified: user.isVerified,
-      token: generateToken(user._id),
-      message: 'Email verified successfully'
-    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -115,34 +158,59 @@ exports.resendOTP = async (req, res) => {
   try {
     const { email } = req.body;
 
-    // Find user by email
-    const user = await User.findOne({ email });
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Check if user is already verified
-    if (user.isVerified) {
-      return res.status(400).json({ message: 'User is already verified' });
-    }
-
-    // Generate new OTP
-    const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-
-    // Update user with new OTP
-    user.emailVerificationOTP = otp;
-    user.emailVerificationOTPExpires = otpExpires;
-
-    await user.save();
-
-    // Send OTP email
-    try {
-      await sendConfirmationEmail(email, user.name, otp);
-      res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
-    } catch (emailError) {
-      res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
+    // Check if there's a pending registration for this email
+    const pendingRegistration = await TempRegistration.findOne({ email });
+    
+    if (!pendingRegistration) {
+      // Check if user exists in database
+      const user = await User.findOne({ email });
+      
+      if (!user) {
+        return res.status(404).json({ message: 'User not found' });
+      }
+      
+      // Check if user is already verified
+      if (user.isVerified) {
+        return res.status(400).json({ message: 'User is already verified' });
+      }
+      
+      // Generate new OTP
+      const otp = generateOTP();
+      const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+      
+      // Update user with new OTP
+      user.emailVerificationOTP = otp;
+      user.emailVerificationOTPExpires = otpExpires;
+      
+      await user.save();
+      
+      // Send OTP email
+      try {
+        await sendConfirmationEmail(email, user.name, otp);
+        res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
+      } catch (emailError) {
+        res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
+      }
+    } else {
+      // Handle pending registration resend
+      
+      // Generate new OTP
+      const otp = generateOTP();
+      const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+      
+      // Update pending registration with new OTP
+      pendingRegistration.emailVerificationOTP = otp;
+      pendingRegistration.emailVerificationOTPExpires = otpExpires;
+      
+      await pendingRegistration.save();
+      
+      // Send OTP email
+      try {
+        await sendConfirmationEmail(email, pendingRegistration.name, otp);
+        res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
+      } catch (emailError) {
+        res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
+      }
     }
   } catch (error) {
     res.status(500).json({ message: error.message });

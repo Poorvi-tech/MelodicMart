@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { authAPI } from '@/lib/apiService';
@@ -23,6 +23,25 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(0);
+
+  // Check if there's a pending registration in localStorage on component mount
+  useEffect(() => {
+    const pendingRegistration = localStorage.getItem('pendingRegistration');
+    if (pendingRegistration) {
+      try {
+        const { email } = JSON.parse(pendingRegistration);
+        setStep('otp');
+        setOtpData({
+          email,
+          otp: '',
+        });
+        setSuccess('Please enter the OTP sent to your email to complete registration.');
+      } catch (e) {
+        // If there's an error parsing, remove the invalid data
+        localStorage.removeItem('pendingRegistration');
+      }
+    }
+  }, []);
 
   // Handle form input changes
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -62,6 +81,12 @@ export default function RegisterPage() {
       const { confirmPassword, ...registerData } = formData;
       const response = await authAPI.register(registerData);
       
+      // Save pending registration to localStorage
+      localStorage.setItem('pendingRegistration', JSON.stringify({
+        email: formData.email,
+        timestamp: Date.now()
+      }));
+      
       // Move to OTP verification step
       setStep('otp');
       setOtpData({
@@ -97,6 +122,9 @@ export default function RegisterPage() {
 
     try {
       const response = await authAPI.verifyOTP(otpData);
+      
+      // Remove pending registration from localStorage
+      localStorage.removeItem('pendingRegistration');
       
       // Save user data and token
       localStorage.setItem('token', response.token);
@@ -144,6 +172,17 @@ export default function RegisterPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle changing email
+  const handleChangeEmail = () => {
+    // Remove pending registration from localStorage
+    localStorage.removeItem('pendingRegistration');
+    setStep('form');
+    setOtpData({
+      email: '',
+      otp: '',
+    });
   };
 
   // Render registration form
@@ -338,10 +377,10 @@ export default function RegisterPage() {
           <p className="text-sm text-gray-600">
             Wrong email?{' '}
             <button 
-              onClick={() => setStep('form')}
+              onClick={handleChangeEmail}
               className="font-semibold text-purple-600 hover:text-purple-500"
             >
-              Go back to registration
+              Change Email
             </button>
           </p>
         </div>
