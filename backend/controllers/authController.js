@@ -53,11 +53,23 @@ exports.register = async (req, res) => {
         message: 'Registration initiated. Please check your email for verification OTP.'
       });
     } catch (emailError) {
+      console.error('Email sending error:', emailError);
       // If email fails, remove from pending registrations
       await TempRegistration.deleteOne({ email });
-      res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
+      
+      // Provide more specific error message based on environment
+      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        res.status(500).json({ 
+          message: 'Email service not configured. Please contact administrator.' 
+        });
+      } else {
+        res.status(500).json({ 
+          message: 'Failed to send verification email. Please try again.' 
+        });
+      }
     }
   } catch (error) {
+    console.error('Registration error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -147,6 +159,7 @@ exports.verifyOTP = async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('OTP verification error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -189,6 +202,7 @@ exports.resendOTP = async (req, res) => {
         await sendConfirmationEmail(email, user.name, otp);
         res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
       } catch (emailError) {
+        console.error('Email sending error:', emailError);
         res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
       }
     } else {
@@ -209,10 +223,12 @@ exports.resendOTP = async (req, res) => {
         await sendConfirmationEmail(email, pendingRegistration.name, otp);
         res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
       } catch (emailError) {
+        console.error('Email sending error:', emailError);
         res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
       }
     }
   } catch (error) {
+    console.error('Resend OTP error:', error);
     res.status(500).json({ message: error.message });
   }
 };
