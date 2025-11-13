@@ -5,8 +5,6 @@ const {
   login,
   getProfile,
   updateProfile,
-  verifyOTP,
-  resendOTP,
   forgotPassword,
   resetPassword,
   uploadAvatar,
@@ -17,8 +15,6 @@ const upload = require('../utils/upload');
 
 router.post('/register', register);
 router.post('/login', login);
-router.post('/verify-otp', verifyOTP);
-router.post('/resend-otp', resendOTP);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.route('/profile')

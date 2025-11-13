@@ -50,25 +50,11 @@ const userSchema = new mongoose.Schema({
   },
   isVerified: {
     type: Boolean,
-    default: false
+    default: true // Set to true by default since we're removing email verification
   },
   avatar: {
     type: String,
     default: ''
-  },
-  // OTP fields for email verification
-  emailVerificationOTP: {
-    type: String
-  },
-  emailVerificationOTPExpires: {
-    type: Date
-  },
-  // OTP fields for password reset
-  passwordResetOTP: {
-    type: String
-  },
-  passwordResetOTPExpires: {
-    type: Date
   },
   // Settings fields
   notifications: {
@@ -122,44 +108,3 @@ userSchema.methods.matchPassword = async function(enteredPassword) {
 };
 
 module.exports = mongoose.model('User', userSchema);
-
-// Add Temporary Registration model for storing pending registrations
-const tempRegistrationSchema = new mongoose.Schema({
-  name: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-    trim: true,
-    match: [/^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/, 'Please add a valid email']
-  },
-  password: {
-    type: String,
-    required: true,
-    minlength: 6
-  },
-  phone: {
-    type: String,
-    trim: true
-  },
-  emailVerificationOTP: {
-    type: String,
-    required: true
-  },
-  emailVerificationOTPExpires: {
-    type: Date,
-    required: true
-  }
-}, {
-  timestamps: true
-});
-
-// Create index to automatically delete expired documents after 15 minutes
-tempRegistrationSchema.index({ emailVerificationOTPExpires: 1 }, { expireAfterSeconds: 900 });
-
-module.exports.TempRegistration = mongoose.model('TempRegistration', tempRegistrationSchema);

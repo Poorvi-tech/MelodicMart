@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// Create email transporter based on environment variables
+// Create email transporter
 const createTransporter = () => {
   // Check if SendGrid API key is provided (preferred for production)
   if (process.env.SENDGRID_API_KEY) {
@@ -25,8 +25,15 @@ const createTransporter = () => {
     });
   }
   
-  // Throw error if no email service is configured
-  throw new Error('No email service configured. Please set EMAIL_USER/EMAIL_PASS or SENDGRID_API_KEY environment variables.');
+  // If no email service is configured, return mock transporter
+  return {
+    sendMail: async (mailOptions) => {
+      console.log('Email service not configured. Would send email:', mailOptions.subject);
+      console.log('To:', mailOptions.to);
+      console.log('From:', mailOptions.from);
+      return Promise.resolve();
+    }
+  };
 };
 
 // Send contact form email to admin

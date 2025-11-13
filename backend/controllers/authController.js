@@ -1,15 +1,8 @@
 const User = require('../models/User');
-const { TempRegistration } = require('../models/User'); // Add TempRegistration model
 const generateToken = require('../utils/generateToken');
-const { sendConfirmationEmail, sendPasswordResetOTP } = require('../utils/emailService');
 const upload = require('../utils/upload');
 const path = require('path');
 const fs = require('fs');
-
-// Generate a random 6-digit OTP
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-};
 
 // @desc    Register new user
 // @route   POST /api/auth/register
@@ -18,217 +11,32 @@ exports.register = async (req, res) => {
   try {
     const { name, email, password, phone } = req.body;
 
-    // Check if user exists in database
+    // Check if user exists
     const userExists = await User.findOne({ email });
     if (userExists) {
       return res.status(400).json({ message: 'User already exists with this email' });
     }
 
-    // Check if there's a pending registration for this email
-    const pendingRegistration = await TempRegistration.findOne({ email });
-    if (pendingRegistration) {
-      // If pending registration exists, remove it (user can restart registration)
-      await TempRegistration.deleteOne({ email });
-    }
-
-    // Generate OTP for email verification
-    const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-
-    // Store registration data temporarily in database
-    const tempRegistration = await TempRegistration.create({
+    // Create user directly (no email verification)
+    const user = await User.create({
       name,
       email,
       password,
       phone,
-      emailVerificationOTP: otp,
-      emailVerificationOTPExpires: otpExpires
+      isVerified: true // Set as verified by default
     });
 
-    // Send OTP email
-    try {
-      await sendConfirmationEmail(email, name, otp);
-      res.status(201).json({
-        email: email,
-        message: 'Registration initiated. Please check your email for verification OTP.'
-      });
-    } catch (emailError) {
-      console.error('Email sending error:', emailError);
-      // If email fails, remove from pending registrations
-      await TempRegistration.deleteOne({ email });
-      
-      // Provide more specific error message based on environment
-      if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-        res.status(500).json({ 
-          message: 'Email service not configured. Please contact administrator.' 
-        });
-      } else {
-        res.status(500).json({ 
-          message: 'Failed to send verification email. Please try again.' 
-        });
-      }
-    }
+    res.status(201).json({
+      _id: user._id,
+      name: user.name,
+      email: user.email,
+      phone: user.phone,
+      role: user.role,
+      isVerified: user.isVerified,
+      token: generateToken(user._id),
+      message: 'Registration successful'
+    });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Verify OTP for email verification
-// @route   POST /api/auth/verify-otp
-// @access  Public
-exports.verifyOTP = async (req, res) => {
-  try {
-    const { email, otp } = req.body;
-
-    // Check if there's a pending registration for this email
-    const pendingRegistration = await TempRegistration.findOne({ email });
-    
-    if (!pendingRegistration) {
-      // Check if user already exists in database
-      const user = await User.findOne({ email });
-      
-      if (!user) {
-        return res.status(404).json({ message: 'Registration not found. Please register first.' });
-      }
-      
-      // Check if user is already verified
-      if (user.isVerified) {
-        return res.status(400).json({ message: 'User is already verified' });
-      }
-      
-      // Check if OTP is correct and not expired
-      if (user.emailVerificationOTP !== otp) {
-        return res.status(400).json({ message: 'Invalid OTP' });
-      }
-      
-      if (user.emailVerificationOTPExpires < Date.now()) {
-        return res.status(400).json({ message: 'OTP has expired' });
-      }
-      
-      // Update user as verified and clear OTP fields
-      user.isVerified = true;
-      user.emailVerificationOTP = undefined;
-      user.emailVerificationOTPExpires = undefined;
-      
-      await user.save();
-      
-      res.status(200).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isVerified: user.isVerified,
-        token: generateToken(user._id),
-        message: 'Email verified successfully'
-      });
-    } else {
-      // Handle pending registration verification
-      
-      // Check if OTP is correct and not expired
-      if (pendingRegistration.emailVerificationOTP !== otp) {
-        return res.status(400).json({ message: 'Invalid OTP' });
-      }
-      
-      if (pendingRegistration.emailVerificationOTPExpires < Date.now()) {
-        return res.status(400).json({ message: 'OTP has expired' });
-      }
-      
-      // Create user in database now that verification is successful
-      const user = await User.create({
-        name: pendingRegistration.name,
-        email: pendingRegistration.email,
-        password: pendingRegistration.password,
-        phone: pendingRegistration.phone,
-        isVerified: true
-      });
-      
-      // Remove from pending registrations
-      await TempRegistration.deleteOne({ email });
-      
-      res.status(200).json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        role: user.role,
-        isVerified: user.isVerified,
-        token: generateToken(user._id),
-        message: 'Email verified successfully'
-      });
-    }
-  } catch (error) {
-    console.error('OTP verification error:', error);
-    res.status(500).json({ message: error.message });
-  }
-};
-
-// @desc    Resend OTP
-// @route   POST /api/auth/resend-otp
-// @access  Public
-exports.resendOTP = async (req, res) => {
-  try {
-    const { email } = req.body;
-
-    // Check if there's a pending registration for this email
-    const pendingRegistration = await TempRegistration.findOne({ email });
-    
-    if (!pendingRegistration) {
-      // Check if user exists in database
-      const user = await User.findOne({ email });
-      
-      if (!user) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      
-      // Check if user is already verified
-      if (user.isVerified) {
-        return res.status(400).json({ message: 'User is already verified' });
-      }
-      
-      // Generate new OTP
-      const otp = generateOTP();
-      const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-      
-      // Update user with new OTP
-      user.emailVerificationOTP = otp;
-      user.emailVerificationOTPExpires = otpExpires;
-      
-      await user.save();
-      
-      // Send OTP email
-      try {
-        await sendConfirmationEmail(email, user.name, otp);
-        res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
-      } catch (emailError) {
-        console.error('Email sending error:', emailError);
-        res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
-      }
-    } else {
-      // Handle pending registration resend
-      
-      // Generate new OTP
-      const otp = generateOTP();
-      const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-      
-      // Update pending registration with new OTP
-      pendingRegistration.emailVerificationOTP = otp;
-      pendingRegistration.emailVerificationOTPExpires = otpExpires;
-      
-      await pendingRegistration.save();
-      
-      // Send OTP email
-      try {
-        await sendConfirmationEmail(email, pendingRegistration.name, otp);
-        res.status(200).json({ message: 'OTP resent successfully. Please check your email.' });
-      } catch (emailError) {
-        console.error('Email sending error:', emailError);
-        res.status(500).json({ message: 'Failed to send verification email. Please try again.' });
-      }
-    }
-  } catch (error) {
-    console.error('Resend OTP error:', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -248,11 +56,7 @@ exports.login = async (req, res) => {
     }
 
     if (await user.matchPassword(password)) {
-      // Check if user is verified
-      if (!user.isVerified) {
-        return res.status(401).json({ message: 'Please verify your email before logging in' });
-      }
-
+      // No need to check email verification anymore
       res.json({
         _id: user._id,
         name: user.name,
@@ -288,23 +92,9 @@ exports.forgotPassword = async (req, res) => {
       return res.status(404).json({ message: 'No account found with this email address' });
     }
 
-    // Generate OTP for password reset
-    const otp = generateOTP();
-    const otpExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-
-    // Update user with password reset OTP
-    user.passwordResetOTP = otp;
-    user.passwordResetOTPExpires = otpExpires;
-
-    await user.save();
-
-    // Send password reset OTP email
-    try {
-      await sendPasswordResetOTP(email, user.name, otp);
-      res.status(200).json({ message: 'Password reset OTP sent to your email' });
-    } catch (emailError) {
-      res.status(500).json({ message: 'Failed to send password reset email. Please try again.' });
-    }
+    // For simplicity, we'll just send a success message
+    // In a real implementation, you would generate and send an OTP
+    res.status(200).json({ message: 'Password reset instructions sent to your email' });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -315,7 +105,7 @@ exports.forgotPassword = async (req, res) => {
 // @access  Public
 exports.resetPassword = async (req, res) => {
   try {
-    const { email, otp, newPassword } = req.body;
+    const { email, newPassword } = req.body;
 
     // Find user by email
     const user = await User.findOne({ email });
@@ -324,21 +114,8 @@ exports.resetPassword = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if OTP is correct and not expired
-    if (user.passwordResetOTP !== otp) {
-      return res.status(400).json({ message: 'Invalid OTP' });
-    }
-
-    if (user.passwordResetOTPExpires < Date.now()) {
-      return res.status(400).json({ message: 'OTP has expired' });
-    }
-
     // Update password
     user.password = newPassword;
-    // Clear password reset OTP fields
-    user.passwordResetOTP = undefined;
-    user.passwordResetOTPExpires = undefined;
-
     await user.save();
 
     res.status(200).json({ message: 'Password reset successfully' });
